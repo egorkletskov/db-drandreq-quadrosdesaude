@@ -1,166 +1,151 @@
-# src/quadrosdesaude/conversion/converter.py
-
 import os
-import time
 import itertools
 import gc
 import polars as pl
 import pyarrow.parquet as pq
 from dbfread import DBF
+from typing import Iterator, Dict, Any, List, Optional
 from quadrosdesaude import descomprimir_dbc
 from .parser import StringFieldParser
-from quadrosdesaude.logger import logger
+from quadrosdesaude.logger import logger, logar_tempo
 
-def harmonizar_registos_em_fluxo(iterator_dbf, schema_mestre):
-  """
-    Processa um iterador de registos DBF garantindo que cada registo tenha todas as colunas.
 
-    Este é um gerador que recebe registros-dicionários de um arquivo DBF, que podem ter 
-    colunas em falta devido a peculiaridades dos dados do DATASUS. Para cada registo, ele cria um 
-    novo dicionário contendo todas as colunas definidas no `schema_mestre`, preenchendo as colunas 
-    em falta com uma string vazia e mantendo os valores existentes.
+def harmonizar_registos_em_fluxo(iterator_dbf: Iterator[Dict[str, Any]], schema_mestre: List[str]) -> Iterator[Dict[str, Any]]:
+    """
+    Processa um fluxo de registros DBF garantindo que cada registro possua todas as colunas.
+
+    Este gerador recebe registros mapeados em dicionários. Devido a peculiaridades dos
+    dados do DATASUS, algumas colunas podem vir ausentes. O algoritmo harmoniza o schema
+    criando um template com chaves nulas (strings vazias) baseadas no `schema_mestre`,
+    preservando os valores originais quando presentes.
 
     Args:
-      iterator_dbf: Um iterador que produz dicionários, onde cada dicionário
-        representa um registo do arquivo DBF.
-      schema_mestre (list): Uma lista de strings contendo os nomes de todas as
-        colunas que deveriam existir em cada registo (normalmente obtida de `DBF(...).field_names`).
+        iterator_dbf (Iterator[Dict[str, Any]]): Iterador gerando dicionários de registros.
+        schema_mestre (List[str]): Lista completa das colunas esperadas.
 
     Yields:
-      dict: Um dicionário representando um registo harmonizado, garantindo que
-        todas as chaves presentes em `schema_mestre` existem no registro-dicionário.
-	"""
-  template = {coluna: '' for coluna in schema_mestre}
-  for registo in iterator_dbf:
-    yield {**template, **registo}
+        Dict[str, Any]: Um dicionário estruturado garantindo compatibilidade com o schema esperado.
+    """
+    template = {coluna: '' for coluna in schema_mestre}
+    for registo in iterator_dbf:
+        yield {**template, **registo}
 
+
+@logar_tempo("Descompressão DBC para DBF")
 def dbc2dbf(caminho_dbc: str, caminho_dbf: str) -> bool:
-  """
-    Descomprime um único arquivo .dbc do PKWare (DATASUS) para o formato padrão .dbf.
+    """
+    Descomprime um arquivo .dbc binário em um formato padrão .dbf.
 
-    Utiliza a função `descomprimir_dbc` para realizar a extração binária. Registra o tempo 
-    de execução e retorna um booleano de sucesso.
-    
-    Atenção: A biblioteca de extração foi fornecida e otimizada por `@danicat` na extensão C original.
+    Encapsula a chamada nativa em C (`descomprimir_dbc`) para realizar a extração
+    desenvolvida especificamente para a arquitetura do PKWare do DATASUS.
 
     Args:
-      caminho_dbc: Caminho completo para o arquivo .dbc de entrada.
-      caminho_dbf: Caminho completo onde o arquivo .dbf descomprimido será guardado.
+        caminho_dbc (str): Caminho absoluto de origem do arquivo .dbc.
+        caminho_dbf (str): Caminho absoluto de destino para o arquivo .dbf.
 
     Returns:
-      bool: True se a descompressão foi bem-sucedida, False caso contrário.
-
-    Raises:
-      FileNotFoundError: Se o `caminho_dbc` não for encontrado (lançado por `fopen` em C).
-      Exception: Outras exceções relacionadas a erros de I/O ou falhas na descompressão (originadas na extensão C).
-	"""
-  start_time = time.perf_counter()
-  try:
-    descomprimir_dbc(caminho_dbc, caminho_dbf)
-    duration = time.perf_counter() - start_time
-    return True
-  except Exception as e:
-    duration = time.perf_counter() - start_time
-    return False
+        bool: Retorna True em caso de sucesso da descompressão, False em caso de falha silenciosa.
+    """
+    try:
+        descomprimir_dbc(caminho_dbc, caminho_dbf)
+        return True
+    except Exception:
+        return False
 
 
-def dbf2parquet(caminho_dbf: str, destino_parquet: str = None, tamanho_lote: int = 100000) -> bool:
-  """
-    Converte um arquivo .dbf para o formato Parquet de forma eficiente em memória.
+@logar_tempo("Conversão DBF para Parquet")
+def dbf2parquet(
+    caminho_dbf: str,
+    destino_parquet: Optional[str] = None,
+    tamanho_lote: int = 100000,
+    compressao: str = 'zstd'
+) -> bool:
+    """
+    Converte um arquivo .dbf para o formato Parquet otimizado para Data Lakes.
 
-    Lê o arquivo .dbf em lotes (chunks), harmoniza os registos para garantir
-    um schema consistente e protegido contra colunas faltantes, converte cada lote 
-    para um DataFrame Polars e escreve/anexa a um arquivo Parquet final usando PyArrow.
-    Por segurança, valida se as linhas escritas correspondem ao cabeçalho original.
+    A conversão opera em processamento de lotes (chunks) utilizando `itertools.islice`,
+    limitando o consumo de RAM. Transforma os dados em um DataFrame Polars provisório,
+    escrevendo apensos sucessivos via PyArrow ParquetWriter.
 
     Args:
-      caminho_dbf: Caminho completo para o arquivo .dbf de entrada.
-      destino_parquet: Caminho completo onde o arquivo .parquet final
-        será guardado. Se None, o nome será derivado do
-        arquivo de entrada e salvo no diretório atual.
-        Valor padrão é None.
-      tamanho_lote: Número de registos DBF a serem lidos e processados
-        em memória de cada vez. Ajustar este valor pode
-        impactar o uso de RAM e a velocidade. Valor padrão é 100000.
+        caminho_dbf (str): Caminho absoluto do arquivo .dbf de origem.
+        destino_parquet (str | None, opcional): Caminho de saída do parquet. Se None, 
+            gera o nome no diretório atual. Padrão é None.
+        tamanho_lote (int, opcional): Volume de linhas lidas em memória por ciclo. Padrão é 100000.
+        compressao (str, opcional): Algoritmo de compressão do parquet (ex: 'zstd', 'snappy'). Padrão 'zstd'.
 
     Returns:
-      bool: True se a conversão e a verificação de contagem de linhas
-        foram bem-sucedidas, False caso contrário.
+        bool: True caso a paridade de linhas entre DBF e Parquet seja atingida sem erros. False caso contrário.
+    """
+    if not destino_parquet:
+        nome_base = os.path.basename(caminho_dbf)
+        destino_parquet = f'{nome_base}.parquet'
 
-    Raises:
-      FileNotFoundError: Se o `caminho_dbf` não for encontrado.
-      dbfread.exceptions.DBFNotFound: Se o arquivo DBF não for válido ou estiver corrompido.
-      Exception: Outras exceções relacionadas a erros de I/O, falhas na
-        escrita do Parquet, ou problemas de memória.
-	"""
-  if not destino_parquet:
-    nome_base = os.path.basename(caminho_dbf)
-    destino_parquet = f'{nome_base}.parquet'
+    writer = None
+    total_linhas_processadas = 0
 
-  start_time = time.perf_counter()
-  writer = None
-  total_linhas_processadas = 0
+    lote_de_registros = None
+    df_lote = None
+    tabela_arrow = None
 
-  lote_de_registros = None
-  df_lote = None
-  tabela_arrow = None
+    try:
+        tabela_dbf = DBF(caminho_dbf, parserclass=StringFieldParser)
+        schema_mestre = tabela_dbf.field_names
 
-  try:
-    tabela_dbf = DBF(caminho_dbf, parserclass = StringFieldParser)
-    schema_mestre = tabela_dbf.field_names
+        gerador_harmonizado = harmonizar_registos_em_fluxo(iter(tabela_dbf), schema_mestre)
 
-    gerador_harmonizado = harmonizar_registos_em_fluxo( iter( tabela_dbf ), schema_mestre )
+        for lote_de_registros in iter(lambda: list(itertools.islice(gerador_harmonizado, tamanho_lote)), []):
+            df_lote = pl.DataFrame(lote_de_registros, schema_overrides={col: pl.Utf8 for col in schema_mestre})
+            tabela_arrow = df_lote.to_arrow()
+            
+            if writer is None:
+                writer = pq.ParquetWriter(destino_parquet, tabela_arrow.schema, compression=compressao)
+            
+            writer.write_table(tabela_arrow)
+            total_linhas_processadas += len(df_lote)
+            
+            lote_de_registros = df_lote = tabela_arrow = None
+            gc.collect()
 
-    for lote_de_registros in iter( lambda: list( itertools.islice( gerador_harmonizado, tamanho_lote ) ), [] ):
-      df_lote = pl.DataFrame( lote_de_registros, schema_overrides={col: pl.Utf8 for col in schema_mestre} )
-      tabela_arrow = df_lote.to_arrow()
-      if writer is None:
-        writer = pq.ParquetWriter(destino_parquet, tabela_arrow.schema, compression='zstd')
-      writer.write_table(tabela_arrow)
-      total_linhas_processadas += len(df_lote)
-      lote_de_registros = df_lote = tabela_arrow = None
-      gc.collect()
+        if writer:
+            writer.close()
 
-    if writer:
-      writer.close()
+        if total_linhas_processadas == 0:
+            return True
 
-    if total_linhas_processadas == 0:
-      return True
+        meta_parquet = pq.ParquetFile(destino_parquet).metadata
+        linhas_no_parquet = meta_parquet.num_rows
+        colunas_parquet = set(meta_parquet.schema.names)
+        colunas_dbf = set(schema_mestre)
 
-    meta_parquet = pq.ParquetFile(destino_parquet).metadata
-    linhas_no_parquet = meta_parquet.num_rows
-    colunas_parquet = set(meta_parquet.schema.names)
-    colunas_dbf = set(schema_mestre)
+        if not colunas_dbf.issubset(colunas_parquet):
+            faltantes = colunas_dbf - colunas_parquet
+            logger.error(f"Inconsistência estrutural detectada em {caminho_dbf}. Colunas omitidas no Parquet: {faltantes}")
+            return False
 
-    if not colunas_dbf.issubset(colunas_parquet):
-      faltantes = colunas_dbf - colunas_parquet
-      logger.error(
-        f'Falha no dbf2parquet do arquivo {caminho_dbf}: colunas ausentes no Parquet: {faltantes}'
-      )
-      return False
+        if total_linhas_processadas == linhas_no_parquet:
+            return True
 
-    if total_linhas_processadas == linhas_no_parquet:
-      return True
+        logger.error(
+            f"Divergência volumétrica em {caminho_dbf}. "
+            f"Processadas: {total_linhas_processadas} | Salvas: {linhas_no_parquet}."
+        )
+        return False
 
-    logger.error(
-      f'Falha no dbf2parquet do arquivo {caminho_dbf}: '
-      f'linhas Processadas({total_linhas_processadas}) != Parquet({linhas_no_parquet}).'
-    )
-    return False
-  except MemoryError as e:
-    logger.error(f'Falha OOM em dbf2parquet ({caminho_dbf}): {e}')
-    return False
-  except FileNotFoundError as e:
-    logger.error(f'Arquivo DBF não encontrado em dbf2parquet ({caminho_dbf}): {e}')
-    return False
-  except Exception as e:
-    logger.error(f'Falha crítica ao processar dbf2parquet do arquivo {caminho_dbf}: {e}')
-    return False
-  finally:
-    lote_de_registros = df_lote = tabela_arrow = None
-    if writer:
-      try:
-        writer.close()
-      except Exception:
-        pass
-    gc.collect()
+    except MemoryError as erro_memoria:
+        logger.error(f"Esgotamento de memória (OOM) ao converter {caminho_dbf}: {erro_memoria}")
+        return False
+    except FileNotFoundError as erro_arquivo:
+        logger.error(f"Arquivo de origem DBF inacessível ({caminho_dbf}): {erro_arquivo}")
+        return False
+    except Exception as erro_critico:
+        logger.error(f"Exceção crítica durante a conversão do arquivo {caminho_dbf}: {erro_critico}")
+        return False
+    finally:
+        lote_de_registros = df_lote = tabela_arrow = None
+        if writer:
+            try:
+                writer.close()
+            except Exception:
+                pass
+        gc.collect()

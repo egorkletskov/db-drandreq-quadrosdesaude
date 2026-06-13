@@ -26,9 +26,9 @@ def test_harmonizar_registos():
         {'B': '3', 'C': '4'},
         {'A': '5', 'C': '6', 'D': 'Ignorado'}
     ]
-    
+
     resultado = list(harmonizar_registos_em_fluxo(iter(lote_incompleto), schema))
-    
+
     assert len(resultado) == 3
     assert resultado[0] == {'A': '1', 'B': '2', 'C': ''}
     assert resultado[1] == {'A': '', 'B': '3', 'C': '4'}
@@ -40,13 +40,25 @@ def test_dbc2parquet_fluxo(mock_dbf2parquet, mock_dbc2dbf, tmp_path):
     """Testa o orquestrador individual de arquivo."""
     mock_dbc2dbf.return_value = True
     mock_dbf2parquet.return_value = True
-    
+
     pasta_destino = str(tmp_path / "destino")
     os.makedirs(pasta_destino, exist_ok=True)
-    
+
     # Mocar também o shutil.move para fingir que o temporário existia
     with patch('shutil.move') as mock_move:
-        resultado = dbc2parquet("teste.dbc", pasta_destino, operacao='unico')
+        resultado = dbc2parquet(
+            "teste.dbc",
+            pasta_destino,
+            operacao='unico',
+            tamanho_lote=5000,
+            compressao='snappy'
+        )
         assert resultado is True
         mock_dbc2dbf.assert_called_once()
         mock_dbf2parquet.assert_called_once()
+        
+        # Verifica se o tamanho_lote e compressao foram repassados para a função dbf2parquet
+        args, kwargs = mock_dbf2parquet.call_args
+        assert kwargs.get('tamanho_lote') == 5000
+        assert kwargs.get('compressao') == 'snappy'
+

@@ -1,0 +1,3 @@
+[submodule ".qds_standards"]
+	path = .qds_standards
+	url = https://github.com/drandreq/qds_standards.git

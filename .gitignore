@@ -221,3 +221,12 @@ __marimo__/
 # AI Knowledge Items / Memory
 GEMINI.md
 KNOWLEDGE_ITEM_GUIDE.md
+
+/wheelhouse
+
+# Arquivos de Dados e Temp
+temp_dbf/
+temp_parquet/
+ducklake/
+*.db
+*.db.wal

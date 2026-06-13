@@ -3,7 +3,7 @@
 Quadros de Saúde: Ferramentas para processamento de dados de saúde pública do Brasil.
 """
 
-__version__ = "0.2.5"
+__version__ = "0.3.0"
 
 try:
   from . import datasus
@@ -14,12 +14,12 @@ except ImportError as e:
   descomprimir_dbc = None
   _c_extension_available = False
 
-from .conversao.orquestrador import orquestrador, dbc2parquet
+from .conversao.orquestrador import orquestrador, orquestrador_single, orquestrador_multi, dbc2parquet
 from .conversao.conversor import dbc2dbf, dbf2parquet
 from .extracao.ftp import FTPDownloader
 from .extracao.inventario import InventarioFTP
-from .logger import logger
-from .utils import medir_tamanho_pasta, limpador_
+from .logger import logger, medir_tempo, logar_tempo
+from .utils import medir_tamanho_pasta
 import os
 
 _ftp_downloader = FTPDownloader()
@@ -65,6 +65,8 @@ def ftp_download_pasta(ftp_path: str, destination_folder: str, extension: str = 
 
 __all__ = [
   'orquestrador',
+  'orquestrador_single',
+  'orquestrador_multi',
   'dbc2dbf',
   'dbf2parquet',
   'dbc2parquet',
@@ -72,9 +74,10 @@ __all__ = [
   'ftp_download_arquivo',
   'ftp_download_pasta',
   'medir_tamanho_pasta',
-  'limpador_',
   'InventarioFTP',
-  'logger'
+  'logger',
+  'medir_tempo',
+  'logar_tempo'
 ]
 
 if _c_extension_available:

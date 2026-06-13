@@ -1,6 +1,6 @@
 [project]
 name = "quadrosdesaude"
-version = "0.2.5"
+version = "0.3.0"
 description = "Ferramentas para processar dados do Datasus (Sistema Público de Saúde)."
 authors = [
     {name = "André Quadros", email = "andre@quadrosdesaude.com.br"}
@@ -53,6 +53,7 @@ dev = [
     "pytest (>=8.4.2,<9.0.0)",
     "pytest-cov (>=7.0.0,<8.0.0)",
     "twine (>=6.2.0,<7.0.0)",
+    "flake8 (>=7.3.0,<8.0.0)",
 ]
 doc = [
     "mkdocs-material (>=9.6.22,<10.0.0)",
@@ -60,6 +61,20 @@ doc = [
     "mkdocstrings-python (>=1.18.2,<2.0.0)"
 ]
 
+[tool.poetry.scripts]
+quadrosdesaude-ui = "quadrosdesaude.ui.iniciar_ui:main"
+
 [tool.pytest.ini_options]
 pythonpath = "."
-addopts = "--doctest-modules"
+addopts = "--doctest-modules --ignore=inventory_entropyzero.py"
+norecursedirs = [
+    ".venv",
+    ".git",
+    ".qds_standards",
+    "build",
+    "dist",
+    "temp_dbf",
+    "temp_parquet",
+    "downloads",
+    "ducklake"
+]

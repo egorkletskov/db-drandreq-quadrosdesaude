@@ -8,7 +8,7 @@ from setuptools.command.build_ext import build_ext
 def build() -> None:
     extensions = [
         Extension(
-            name="quadrosdesaude.datasus", 
+            name="quadrosdesaude.datasus",
             sources=[
                 "src/quadrosdesaude/c_src/decompress.c",
                 "src/quadrosdesaude/c_src/blast.c"
@@ -30,10 +30,10 @@ def build() -> None:
     for output in cmd.get_outputs():
         output = Path(output)
         relative_extension = Path("src") / output.relative_to(cmd.build_lib)
-        
+
         # Garante que as pastas da árvore existam
         relative_extension.parent.mkdir(parents=True, exist_ok=True)
-        
+
         shutil.copyfile(output, relative_extension)
         mode = os.stat(relative_extension).st_mode
         mode |= (mode & 0o444) >> 2
