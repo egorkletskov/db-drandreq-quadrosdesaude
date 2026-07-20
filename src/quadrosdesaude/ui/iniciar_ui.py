@@ -23,7 +23,7 @@ def encontrar_porta_livre(porta_inicial: int = 8501) -> int:
     while porta < 9000:
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
             try:
-                sock.bind(('localhost', porta))
+                sock.bind(("localhost", porta))
                 return porta
             except OSError:
                 porta += 1
@@ -45,12 +45,21 @@ def main() -> None:
         if not os.path.exists(caminho_home):
             raise FileNotFoundError(f"Módulo base da interface não localizado em: {caminho_home}")
 
-        subprocess.run([
-            sys.executable, "-m", "streamlit", "run", caminho_home,
-            "--server.port", str(porta),
-            "--server.headless", "true"
-        ], check=True)
-        
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                caminho_home,
+                "--server.port",
+                str(porta),
+                "--server.headless",
+                "true",
+            ],
+            check=True,
+        )
+
     except Exception as erro_execucao:
         logger.error(f"Falha severa na inicialização da camada de visualização: {erro_execucao}")
         sys.exit(1)

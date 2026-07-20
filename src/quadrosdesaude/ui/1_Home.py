@@ -20,6 +20,8 @@ st.markdown(
     """
 )
 
-st.info("Para diretrizes arquiteturais e contribuições, consulte a documentação técnica oficial no repositório.")
+st.info(
+    "Para diretrizes arquiteturais e contribuições, consulte a documentação técnica oficial no repositório."
+)
 
 render_footer()

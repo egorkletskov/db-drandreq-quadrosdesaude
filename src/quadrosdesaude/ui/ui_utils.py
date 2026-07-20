@@ -7,8 +7,8 @@ class StreamlitLogHandler(logging.Handler):
     """
     Handler customizado para a infraestrutura de logging do Python.
 
-    Objetiva capturar e replicar logs de processamento do backend (quadrosdesaude) 
-    para dois canais distintos simultaneamente: persistência local (arquivo físico) 
+    Objetiva capturar e replicar logs de processamento do backend (quadrosdesaude)
+    para dois canais distintos simultaneamente: persistência local (arquivo físico)
     e exibição dinâmica na interface Streamlit (limitando a volumetria em memória).
 
     Attributes:
@@ -17,7 +17,10 @@ class StreamlitLogHandler(logging.Handler):
         max_lines_ui (int): Número limite de linhas mantidas no buffer da interface.
         log_lines (List[str]): Lista em memória contendo os registros recentes.
     """
-    def __init__(self, placeholder: Any, log_file: str = "quadrosdesaude.log", max_lines_ui: int = 30) -> None:
+
+    def __init__(
+        self, placeholder: Any, log_file: str = "quadrosdesaude.log", max_lines_ui: int = 30
+    ) -> None:
         """
         Inicializa o handler vinculando-o ao contexto do Streamlit.
 
@@ -31,7 +34,7 @@ class StreamlitLogHandler(logging.Handler):
         self.log_file = log_file
         self.max_lines_ui = max_lines_ui
         self.log_lines: List[str] = []
-        self.setFormatter(logging.Formatter('%(asctime)s - %(message)s', datefmt='%H:%M:%S'))
+        self.setFormatter(logging.Formatter("%(asctime)s - %(message)s", datefmt="%H:%M:%S"))
 
     def emit(self, record: logging.LogRecord) -> None:
         """
@@ -52,7 +55,7 @@ class StreamlitLogHandler(logging.Handler):
 
             texto_ui = "\n".join(self.log_lines)
             self.placeholder.code(texto_ui, language="log")
-            
+
         except Exception:
             self.handleError(record)
 
@@ -60,7 +63,7 @@ class StreamlitLogHandler(logging.Handler):
 def render_footer() -> None:
     """
     Injeta de forma padronizada o rodapé institucional em páginas da interface.
-    
+
     Aplica elementos HTML de separação e referências externas mantendo a integridade visual.
     """
     st.markdown("---")
@@ -71,5 +74,5 @@ def render_footer() -> None:
             Desenvolvido por <a href="https://instagram.com/dr.andreq" target="_blank" style="text-decoration: none; color: #1e88e5;"><b>Dr. André Quadros</b></a>
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )

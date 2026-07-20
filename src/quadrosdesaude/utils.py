@@ -1,6 +1,4 @@
 import os
-import glob
-import shutil
 from typing import Optional
 from quadrosdesaude.logger import logger
 
@@ -24,7 +22,7 @@ def formatar_tamanho(num_bytes: int | None) -> str:
 
     power = 1024
     n = 0
-    power_labels = {0: '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    power_labels = {0: "", 1: "K", 2: "M", 3: "G", 4: "T"}
 
     while num_bytes >= power and n < len(power_labels):
         num_bytes /= power
@@ -46,12 +44,12 @@ def medir_tamanho_pasta(caminho_pasta: str) -> Optional[str]:
 
     Returns:
         Optional[str]: Uma string com o tamanho total formatado (ex: "1.50 GB").
-                       Retorna None em caso de falhas severas, embora o atual comportamento 
+                       Retorna None em caso de falhas severas, embora o atual comportamento
                        retorne o somatório do que pôde ser lido.
     """
     logger.info(f"Calculando o tamanho do diretório: {caminho_pasta}")
     tamanho_total_bytes = 0
-    
+
     for dirpath, dirnames, filenames in os.walk(caminho_pasta):
         for f in filenames:
             caminho_arquivo = os.path.join(dirpath, f)
@@ -62,6 +60,5 @@ def medir_tamanho_pasta(caminho_pasta: str) -> Optional[str]:
 
     tamanho_formatado = formatar_tamanho(tamanho_total_bytes)
     logger.info(f"Tamanho total apurado para o diretório: {tamanho_formatado}")
-    
-    return tamanho_formatado
 
+    return tamanho_formatado

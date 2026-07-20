@@ -4,12 +4,7 @@ Sinta-se à vontade para modificar este arquivo para experimentar com o código 
 """
 
 import os
-from quadrosdesaude import (
-    medir_tempo,
-    orquestrador_single,
-    medir_tamanho_pasta,
-    logger
-)
+from quadrosdesaude import medir_tempo, orquestrador_single, medir_tamanho_pasta, logger
 
 # Configurando pasta de testes locais
 PASTA_ORIGEM = os.path.abspath("./downloads")
@@ -31,7 +26,7 @@ def main():
                 pasta_destino_parquet=PASTA_DESTINO,
                 pasta_temp_dbf=PASTA_TEMP_DBF,
                 pasta_temp_parquet=PASTA_TEMP_PARQUET,
-                tamanho_lote=50000
+                tamanho_lote=50000,
             )
 
         medir_tamanho_pasta(PASTA_DESTINO)

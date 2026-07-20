@@ -10,11 +10,11 @@ from quadrosdesaude.logger import logger, logar_tempo
 
 class InventarioFTP:
     """
-    Constrói e gerencia um catálogo local em DuckDB mapeando a árvore de diretórios 
+    Constrói e gerencia um catálogo local em DuckDB mapeando a árvore de diretórios
     de um servidor FTP remoto (focado no DATASUS).
 
-    Esta classe foi arquitetada para alta performance, utilizando múltiplas threads e 
-    processamento de strings nativo (ASCII/Latin-1) para construir o inventário 
+    Esta classe foi arquitetada para alta performance, utilizando múltiplas threads e
+    processamento de strings nativo (ASCII/Latin-1) para construir o inventário
     sem sofrer com timeouts e garantindo integridade transacional mínima.
 
     Attributes:
@@ -44,7 +44,7 @@ class InventarioFTP:
     def inicializar_banco(self) -> None:
         """
         Garante a existência do banco de dados e da tabela de inventário.
-        
+
         A tabela `inventory` armazena o caminho, nome, tipo e metadados de captura
         de cada artefato mapeado no FTP.
         """
@@ -69,7 +69,7 @@ class InventarioFTP:
         Realiza o processamento léxico de uma linha retornada pelo comando LIST/DIR do FTP.
 
         Lida primariamente com o formato MS-DOS/Windows comum em FTPs governamentais.
-        
+
         Args:
             linha_bruta (str): String crua retornada pela listagem do servidor.
             caminho_pai (str): O diretório absoluto ao qual esta linha pertence.
@@ -84,7 +84,7 @@ class InventarioFTP:
                 return None
 
             indicador_tipo = partes[2]
-            eh_diretorio = (indicador_tipo == "<DIR>")
+            eh_diretorio = indicador_tipo == "<DIR>"
             nome_do_item = " ".join(partes[3:])
             tamanho = int(indicador_tipo) if not eh_diretorio else 0
 
@@ -97,16 +97,18 @@ class InventarioFTP:
                 "nome": nome_do_item,
                 "tipo": "diretorio" if eh_diretorio else "arquivo",
                 "tamanho_bytes": tamanho,
-                "caminho_pai": caminho_pai
+                "caminho_pai": caminho_pai,
             }
         except Exception as erro_parsing:
-            logger.debug(f"Falha ao realizar parsing da linha: '{linha_bruta}'. Detalhe: {erro_parsing}")
+            logger.debug(
+                f"Falha ao realizar parsing da linha: '{linha_bruta}'. Detalhe: {erro_parsing}"
+            )
             return None
 
     def _worker_mapeamento(self) -> None:
         """
         Rotina executada pelas threads do pool.
-        
+
         Cada thread mantém sua própria conexão FTP isolada e consome iterativamente a
         fila de diretórios, alimentando o banco local conforme descobre novos nós.
         """
@@ -147,14 +149,21 @@ class InventarioFTP:
                         fatos = self._extrair_dados_msdos(linha, caminho_alvo)
                         if fatos:
                             with self.trava_db:
-                                conexao_db.execute("""
+                                conexao_db.execute(
+                                    """
                                     INSERT OR IGNORE INTO inventory
                                     (caminho_completo, nome, tipo, tamanho_bytes, caminho_pai, segundos_mapeamento)
                                     VALUES (?, ?, ?, ?, ?, ?)
-                                """, [
-                                    fatos["caminho_completo"], fatos["nome"], fatos["tipo"],
-                                    fatos["tamanho_bytes"], fatos["caminho_pai"], tempo_total
-                                ])
+                                """,
+                                    [
+                                        fatos["caminho_completo"],
+                                        fatos["nome"],
+                                        fatos["tipo"],
+                                        fatos["tamanho_bytes"],
+                                        fatos["caminho_pai"],
+                                        tempo_total,
+                                    ],
+                                )
 
                             if fatos["tipo"] == "diretorio":
                                 self.fila_diretorios.put(fatos["caminho_completo"])
@@ -164,10 +173,14 @@ class InventarioFTP:
                 except Exception as erro_ftp:
                     mensagem_erro = str(erro_ftp)
                     if "550" in mensagem_erro:
-                        logger.warning(f"Acesso negado ou diretório vazio no servidor remoto: {caminho_alvo}")
+                        logger.warning(
+                            f"Acesso negado ou diretório vazio no servidor remoto: {caminho_alvo}"
+                        )
                         sucesso_leitura = True
                     else:
-                        logger.error(f"Erro transiente em {caminho_alvo} ({mensagem_erro}). Forçando reconexão...")
+                        logger.error(
+                            f"Erro transiente em {caminho_alvo} ({mensagem_erro}). Forçando reconexão..."
+                        )
                         try:
                             conexao_ftp.quit()
                             time.sleep(1)
@@ -187,7 +200,7 @@ class InventarioFTP:
         if conexao_db:
             conexao_db.execute("PRAGMA force_checkpoint")
             conexao_db.close()
-        
+
         if conexao_ftp:
             try:
                 conexao_ftp.quit()
@@ -198,7 +211,7 @@ class InventarioFTP:
     def atualizar_inventario(self, diretorio_raiz: str = "/dissemin/publicos") -> None:
         """
         Orquestra a atualização do inventário de forma assíncrona.
-        
+
         Dispara múltiplas threads que recursivamente listam todos os arquivos
         e diretórios a partir de `diretorio_raiz`.
 
@@ -222,7 +235,9 @@ class InventarioFTP:
                         break
 
         except KeyboardInterrupt:
-            logger.warning("Interrupção externa detectada. Finalizando pool de threads de forma segura...")
+            logger.warning(
+                "Interrupção externa detectada. Finalizando pool de threads de forma segura..."
+            )
             self.evento_parada.set()
         finally:
             self.evento_parada.set()
@@ -234,11 +249,11 @@ class InventarioFTP:
                 SELECT COUNT(*), COALESCE(SUM(tamanho_bytes), 0) / 1024 / 1024 / 1024
                 FROM inventory
             """).fetchone()
-            
+
             if resumo:
                 logger.info(f"Consolidação de Inventário: {resumo[0]} entidades computadas.")
                 logger.info(f"Volume de Dados Mapeado: {resumo[1]:.4f} GB")
-                
+
             con_resumo.close()
         except Exception as erro_resumo:
             logger.error(f"Falha ao gerar o resumo final do inventário: {erro_resumo}")
@@ -258,12 +273,15 @@ class InventarioFTP:
         try:
             con = duckdb.connect(self.db_path)
             padrao = f"{pasta_raiz}%"
-            resultado = con.execute("""
+            resultado = con.execute(
+                """
                 SELECT caminho_completo, nome, tamanho_bytes, caminho_pai
                 FROM inventory
                 WHERE tipo = 'arquivo' AND caminho_completo LIKE ?
                 ORDER BY caminho_pai ASC, nome ASC
-            """, [padrao]).fetchall()
+            """,
+                [padrao],
+            ).fetchall()
             con.close()
 
             return [
@@ -271,7 +289,7 @@ class InventarioFTP:
                     "caminho_completo": row[0],
                     "nome": row[1],
                     "tamanho_bytes": row[2],
-                    "caminho_pai": row[3]
+                    "caminho_pai": row[3],
                 }
                 for row in resultado
             ]

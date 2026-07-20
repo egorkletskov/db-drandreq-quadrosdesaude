@@ -10,7 +10,9 @@ from .parser import StringFieldParser
 from quadrosdesaude.logger import logger, logar_tempo
 
 
-def harmonizar_registos_em_fluxo(iterator_dbf: Iterator[Dict[str, Any]], schema_mestre: List[str]) -> Iterator[Dict[str, Any]]:
+def harmonizar_registos_em_fluxo(
+    iterator_dbf: Iterator[Dict[str, Any]], schema_mestre: List[str]
+) -> Iterator[Dict[str, Any]]:
     """
     Processa um fluxo de registros DBF garantindo que cada registro possua todas as colunas.
 
@@ -26,7 +28,7 @@ def harmonizar_registos_em_fluxo(iterator_dbf: Iterator[Dict[str, Any]], schema_
     Yields:
         Dict[str, Any]: Um dicionário estruturado garantindo compatibilidade com o schema esperado.
     """
-    template = {coluna: '' for coluna in schema_mestre}
+    template = {coluna: "" for coluna in schema_mestre}
     for registo in iterator_dbf:
         yield {**template, **registo}
 
@@ -58,7 +60,7 @@ def dbf2parquet(
     caminho_dbf: str,
     destino_parquet: Optional[str] = None,
     tamanho_lote: int = 100000,
-    compressao: str = 'zstd'
+    compressao: str = "zstd",
 ) -> bool:
     """
     Converte um arquivo .dbf para o formato Parquet otimizado para Data Lakes.
@@ -69,7 +71,7 @@ def dbf2parquet(
 
     Args:
         caminho_dbf (str): Caminho absoluto do arquivo .dbf de origem.
-        destino_parquet (str | None, opcional): Caminho de saída do parquet. Se None, 
+        destino_parquet (str | None, opcional): Caminho de saída do parquet. Se None,
             gera o nome no diretório atual. Padrão é None.
         tamanho_lote (int, opcional): Volume de linhas lidas em memória por ciclo. Padrão é 100000.
         compressao (str, opcional): Algoritmo de compressão do parquet (ex: 'zstd', 'snappy'). Padrão 'zstd'.
@@ -79,7 +81,7 @@ def dbf2parquet(
     """
     if not destino_parquet:
         nome_base = os.path.basename(caminho_dbf)
-        destino_parquet = f'{nome_base}.parquet'
+        destino_parquet = f"{nome_base}.parquet"
 
     writer = None
     total_linhas_processadas = 0
@@ -94,16 +96,22 @@ def dbf2parquet(
 
         gerador_harmonizado = harmonizar_registos_em_fluxo(iter(tabela_dbf), schema_mestre)
 
-        for lote_de_registros in iter(lambda: list(itertools.islice(gerador_harmonizado, tamanho_lote)), []):
-            df_lote = pl.DataFrame(lote_de_registros, schema_overrides={col: pl.Utf8 for col in schema_mestre})
+        for lote_de_registros in iter(
+            lambda: list(itertools.islice(gerador_harmonizado, tamanho_lote)), []
+        ):
+            df_lote = pl.DataFrame(
+                lote_de_registros, schema_overrides={col: pl.Utf8 for col in schema_mestre}
+            )
             tabela_arrow = df_lote.to_arrow()
-            
+
             if writer is None:
-                writer = pq.ParquetWriter(destino_parquet, tabela_arrow.schema, compression=compressao)
-            
+                writer = pq.ParquetWriter(
+                    destino_parquet, tabela_arrow.schema, compression=compressao
+                )
+
             writer.write_table(tabela_arrow)
             total_linhas_processadas += len(df_lote)
-            
+
             lote_de_registros = df_lote = tabela_arrow = None
             gc.collect()
 
@@ -120,7 +128,9 @@ def dbf2parquet(
 
         if not colunas_dbf.issubset(colunas_parquet):
             faltantes = colunas_dbf - colunas_parquet
-            logger.error(f"Inconsistência estrutural detectada em {caminho_dbf}. Colunas omitidas no Parquet: {faltantes}")
+            logger.error(
+                f"Inconsistência estrutural detectada em {caminho_dbf}. Colunas omitidas no Parquet: {faltantes}"
+            )
             return False
 
         if total_linhas_processadas == linhas_no_parquet:
@@ -139,7 +149,9 @@ def dbf2parquet(
         logger.error(f"Arquivo de origem DBF inacessível ({caminho_dbf}): {erro_arquivo}")
         return False
     except Exception as erro_critico:
-        logger.error(f"Exceção crítica durante a conversão do arquivo {caminho_dbf}: {erro_critico}")
+        logger.error(
+            f"Exceção crítica durante a conversão do arquivo {caminho_dbf}: {erro_critico}"
+        )
         return False
     finally:
         lote_de_registros = df_lote = tabela_arrow = None

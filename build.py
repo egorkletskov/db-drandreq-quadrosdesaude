@@ -5,22 +5,17 @@ from pathlib import Path
 from setuptools import Distribution, Extension
 from setuptools.command.build_ext import build_ext
 
+
 def build() -> None:
     extensions = [
         Extension(
             name="quadrosdesaude.datasus",
-            sources=[
-                "src/quadrosdesaude/c_src/decompress.c",
-                "src/quadrosdesaude/c_src/blast.c"
-            ],
+            sources=["src/quadrosdesaude/c_src/decompress.c", "src/quadrosdesaude/c_src/blast.c"],
             language="c",
         )
     ]
 
-    distribution = Distribution({
-        "name": "quadrosdesaude",
-        "ext_modules": extensions
-    })
+    distribution = Distribution({"name": "quadrosdesaude", "ext_modules": extensions})
 
     cmd = build_ext(distribution)
     cmd.ensure_finalized()
@@ -38,6 +33,7 @@ def build() -> None:
         mode = os.stat(relative_extension).st_mode
         mode |= (mode & 0o444) >> 2
         os.chmod(relative_extension, mode)
+
 
 if __name__ == "__main__":
     build()

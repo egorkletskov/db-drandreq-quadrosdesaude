@@ -34,10 +34,10 @@ class FTPDownloader:
     def lista_arquivos(
         self,
         caminho_ftp: str,
-        extensao: str = '.dbc',
+        extensao: str = ".dbc",
         prefixo: Optional[str] = None,
         usuario: Optional[str] = None,
-        senha: Optional[str] = None
+        senha: Optional[str] = None,
     ) -> List[str]:
         """
         Lista arquivos num diretório específico do servidor FTP remoto.
@@ -62,7 +62,7 @@ class FTPDownloader:
                     ftp.login(user=usuario, passwd=senha or "")
                 else:
                     ftp.login()
-                    
+
                 ftp.cwd(caminho_ftp)
                 arquivos_e_pastas = ftp.nlst()
 
@@ -70,10 +70,14 @@ class FTPDownloader:
                     return arquivos_e_pastas
 
                 if extensao:
-                    files = [item for item in arquivos_e_pastas if item.upper().endswith(extensao.upper())]
+                    files = [
+                        item
+                        for item in arquivos_e_pastas
+                        if item.upper().endswith(extensao.upper())
+                    ]
                 else:
                     files = arquivos_e_pastas
-                    
+
                 if prefixo:
                     files = [item for item in files if item.upper().startswith(prefixo.upper())]
 
@@ -95,10 +99,10 @@ class FTPDownloader:
         caminho_ftp: str,
         nome_arquivo: str,
         pasta_destino: str,
-        pasta_temp: str = './temp_download',
+        pasta_temp: str = "./temp_download",
         usuario: Optional[str] = None,
         senha: Optional[str] = None,
-        flag_pasta: bool = False
+        flag_pasta: bool = False,
     ) -> Optional[str]:
         """
         Realiza a transferência de um único arquivo do servidor FTP para o disco local.
@@ -119,7 +123,7 @@ class FTPDownloader:
         Returns:
             Optional[str]: Uma string indicando o sucesso ("BAIXADO: nome" ou "Arquivo já baixado: nome").
                            Retorna None caso ocorra qualquer falha.
-                           
+
         Raises:
             Exception: Propaga erros caso o sistema não consiga mover o arquivo temporário para o destino.
         """
@@ -142,38 +146,54 @@ class FTPDownloader:
 
                 if not flag_pasta:
                     total_size = ftp.size(nome_arquivo)
-                    with open(caminho_temp, 'wb') as f_local, tqdm(
-                        total=total_size,
-                        unit='B', unit_scale=True, unit_divisor=1024, desc=nome_arquivo
-                    ) as pbar:
+                    with (
+                        open(caminho_temp, "wb") as f_local,
+                        tqdm(
+                            total=total_size,
+                            unit="B",
+                            unit_scale=True,
+                            unit_divisor=1024,
+                            desc=nome_arquivo,
+                        ) as pbar,
+                    ):
+
                         def callback(data: bytes) -> None:
                             if self.evento_parada.is_set():
-                                raise Exception("Sinal de interrupção detectado. Abortando download.")
+                                raise Exception(
+                                    "Sinal de interrupção detectado. Abortando download."
+                                )
                             f_local.write(data)
                             pbar.update(len(data))
-                            
+
                         ftp.retrbinary(f"RETR {nome_arquivo}", callback)
                 else:
-                    with open(caminho_temp, 'wb') as f_local:
+                    with open(caminho_temp, "wb") as f_local:
+
                         def callback(data: bytes) -> None:
                             if self.evento_parada.is_set():
-                                raise Exception("Sinal de interrupção detectado. Abortando download.")
+                                raise Exception(
+                                    "Sinal de interrupção detectado. Abortando download."
+                                )
                             f_local.write(data)
-                            
+
                         ftp.retrbinary(f"RETR {nome_arquivo}", callback)
-                        
+
             try:
                 shutil.move(caminho_temp, caminho_destino)
             except Exception as erro_movimentacao:
-                raise Exception(f"Falha ao consolidar o arquivo {nome_arquivo} no destino final: {erro_movimentacao}") from erro_movimentacao
-                
+                raise Exception(
+                    f"Falha ao consolidar o arquivo {nome_arquivo} no destino final: {erro_movimentacao}"
+                ) from erro_movimentacao
+
             return f"BAIXADO: {nome_arquivo}"
 
         except error_perm as erro_permissao:
             logger.error(f"Erro de acesso ou artefato inexistente no FTP: {erro_permissao}")
             return None
         except Exception as erro_geral:
-            logger.error(f"Falha transiente na transferência do arquivo {nome_arquivo}: {erro_geral}")
+            logger.error(
+                f"Falha transiente na transferência do arquivo {nome_arquivo}: {erro_geral}"
+            )
             if os.path.exists(caminho_temp):
                 os.remove(caminho_temp)
             return None
@@ -186,12 +206,12 @@ class FTPDownloader:
         self,
         caminho_ftp: str,
         pasta_destino: str,
-        pasta_temp: str = './temp_download',
-        extensao: str = '.dbc',
+        pasta_temp: str = "./temp_download",
+        extensao: str = ".dbc",
         prefixo: Optional[str] = None,
         max_workers: int = 1,
         usuario: Optional[str] = None,
-        senha: Optional[str] = None
+        senha: Optional[str] = None,
     ) -> None:
         """
         Orquestra a extração de múltiplos arquivos de um diretório remoto, suportando paralelismo.
@@ -218,7 +238,9 @@ class FTPDownloader:
             return
 
         total_arquivos = len(arquivos_para_download)
-        logger.info(f"Mapeamento concluído: {total_arquivos} arquivos identificados. Iniciando alocação de {max_workers} threads.")
+        logger.info(
+            f"Mapeamento concluído: {total_arquivos} arquivos identificados. Iniciando alocação de {max_workers} threads."
+        )
         self.evento_parada.clear()
 
         try:
@@ -234,14 +256,16 @@ class FTPDownloader:
                             pasta_temp,
                             usuario,
                             senha,
-                            True
+                            True,
                         )
                     )
 
                 with tqdm(total=total_arquivos, desc="Progresso Consolidado", position=0) as pbar:
                     for future in as_completed(futuros):
                         if self.evento_parada.is_set():
-                            logger.warning("Interrupção solicitada pelo host. Cancelando fila pendente.")
+                            logger.warning(
+                                "Interrupção solicitada pelo host. Cancelando fila pendente."
+                            )
                             executor.shutdown(wait=False, cancel_futures=True)
                             break
                         try:
@@ -254,7 +278,9 @@ class FTPDownloader:
             logger.warning("Sinal SIGINT detectado pelo terminal. Desligando threads.")
             self.evento_parada.set()
         except BaseException as erro_critico:
-            logger.error(f"Instabilidade crítica detectada na aplicação. Forçando parada: {erro_critico}")
+            logger.error(
+                f"Instabilidade crítica detectada na aplicação. Forçando parada: {erro_critico}"
+            )
             self.evento_parada.set()
             raise erro_critico
         finally:

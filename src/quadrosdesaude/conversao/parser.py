@@ -32,6 +32,6 @@ class StringFieldParser(FieldParser):
             Union[str, Any]: A string decodificada (se bem-sucedido) ou o dado original inalterado.
         """
         try:
-            return data.strip().decode('latin1')
+            return data.strip().decode("latin1")
         except (ValueError, AttributeError):
             return data

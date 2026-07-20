@@ -13,11 +13,11 @@ from quadrosdesaude.logger import logger, logar_tempo
 def dbc2parquet(
     caminho_dbc: str,
     destino_parquet: str,
-    pasta_temp_dbf: str = './temp_dbf',
-    pasta_temp_parquet: str = './temp_parquet',
-    operacao: Literal['lote', 'unico'] = 'unico',
+    pasta_temp_dbf: str = "./temp_dbf",
+    pasta_temp_parquet: str = "./temp_parquet",
+    operacao: Literal["lote", "unico"] = "unico",
     tamanho_lote: int = 100000,
-    compressao: str = 'zstd'
+    compressao: str = "zstd",
 ) -> Union[Tuple[str, bool, str], bool]:
     """
     Processa um único arquivo .dbc efetuando sua conversão final para Parquet de modo atômico.
@@ -38,7 +38,7 @@ def dbc2parquet(
         compressao (str, opcional): Algoritmo de compressão do Parquet. Padrão 'zstd'.
 
     Returns:
-        Union[Tuple[str, bool, str], bool]: 
+        Union[Tuple[str, bool, str], bool]:
             - Se `operacao='lote'`: Retorna a tupla (nome_base, sucesso, mensagem).
             - Se `operacao='unico'`: Retorna status booleano (True/False).
     """
@@ -55,24 +55,32 @@ def dbc2parquet(
     try:
         dbc2dbf(caminho_dbc, caminho_dbf_temp)
 
-        if dbf2parquet(caminho_dbf_temp, caminho_parquet_temp, tamanho_lote=tamanho_lote, compressao=compressao):
+        if dbf2parquet(
+            caminho_dbf_temp, caminho_parquet_temp, tamanho_lote=tamanho_lote, compressao=compressao
+        ):
             try:
                 shutil.move(caminho_parquet_temp, caminho_parquet_final)
             except Exception as erro_movimentacao:
-                raise Exception(f"Falha ao promover o arquivo {caminho_parquet_temp} ao diretório final: {erro_movimentacao}") from erro_movimentacao
+                raise Exception(
+                    f"Falha ao promover o arquivo {caminho_parquet_temp} ao diretório final: {erro_movimentacao}"
+                ) from erro_movimentacao
 
-            if operacao == 'lote':
+            if operacao == "lote":
                 return (nome_base, True, f"Processamento bem-sucedido: {caminho_parquet_final}")
             return True
 
         else:
-            if operacao == 'lote':
-                return (nome_base, False, f"Falha de integridade na conversão do arquivo: {caminho_dbf_temp}")
+            if operacao == "lote":
+                return (
+                    nome_base,
+                    False,
+                    f"Falha de integridade na conversão do arquivo: {caminho_dbf_temp}",
+                )
             return False
 
     except Exception as erro_geral:
         logger.error(f"Exceção durante a esteira de conversão de {nome_base}: {erro_geral}")
-        if operacao == 'lote':
+        if operacao == "lote":
             return (nome_base, False, f"Falha transiente na conversão de: {caminho_dbf_temp}")
         return False
     finally:
@@ -85,10 +93,10 @@ def dbc2parquet(
 def orquestrador_single(
     pasta_origem_dbc: str,
     pasta_destino_parquet: str,
-    pasta_temp_dbf: str = './temp_dbf',
-    pasta_temp_parquet: str = './temp_parquet',
+    pasta_temp_dbf: str = "./temp_dbf",
+    pasta_temp_parquet: str = "./temp_parquet",
     tamanho_lote: int = 100000,
-    compressao: str = 'zstd'
+    compressao: str = "zstd",
 ) -> None:
     """
     Controlador para execução linear e atômica de conversões em massa (DBC para Parquet).
@@ -110,7 +118,7 @@ def orquestrador_single(
             shutil.rmtree(pasta)
         os.makedirs(pasta, exist_ok=True)
 
-    arquivos_dbc = list(Path(pasta_origem_dbc).glob('*.[dD][bB][cC]'))
+    arquivos_dbc = list(Path(pasta_origem_dbc).glob("*.[dD][bB][cC]"))
     if not arquivos_dbc:
         logger.warning("Nenhum arquivo .dbc foi identificado na origem declarada.")
         return
@@ -119,7 +127,7 @@ def orquestrador_single(
     start_time_total = time.perf_counter()
 
     progress_bar = tqdm(total=len(arquivos_dbc), desc="Processamento Unificado")
-    
+
     for caminho_dbc in arquivos_dbc:
         try:
             nome_base, sucesso, mensagem = dbc2parquet(
@@ -127,9 +135,9 @@ def orquestrador_single(
                 destino_parquet=pasta_destino_parquet,
                 pasta_temp_dbf=pasta_temp_dbf,
                 pasta_temp_parquet=pasta_temp_parquet,
-                operacao='lote',
+                operacao="lote",
                 tamanho_lote=tamanho_lote,
-                compressao=compressao
+                compressao=compressao,
             )
             if sucesso:
                 sucessos += 1
@@ -153,11 +161,11 @@ def orquestrador_single(
 def orquestrador_multi(
     pasta_origem_dbc: str,
     pasta_destino_parquet: str,
-    pasta_temp_dbf: str = './temp_dbf',
-    pasta_temp_parquet: str = './temp_parquet',
+    pasta_temp_dbf: str = "./temp_dbf",
+    pasta_temp_parquet: str = "./temp_parquet",
     max_workers: int = 2,
     tamanho_lote: int = 100000,
-    compressao: str = 'zstd'
+    compressao: str = "zstd",
 ) -> None:
     """
     Controlador para execução paralela da malha de conversão via instâncias multithread.
@@ -179,7 +187,7 @@ def orquestrador_multi(
             shutil.rmtree(pasta)
         os.makedirs(pasta, exist_ok=True)
 
-    arquivos_dbc = list(Path(pasta_origem_dbc).glob('*.[dD][bB][cC]'))
+    arquivos_dbc = list(Path(pasta_origem_dbc).glob("*.[dD][bB][cC]"))
     if not arquivos_dbc:
         logger.warning("Nenhum arquivo .dbc válido foi detectado no volume de entrada.")
         return
@@ -190,7 +198,7 @@ def orquestrador_multi(
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         progress_bar = tqdm(total=len(arquivos_dbc), desc="Processamento em Lote Concorrente")
         futuros = []
-        
+
         for caminho_dbc in arquivos_dbc:
             futuros.append(
                 executor.submit(
@@ -199,30 +207,36 @@ def orquestrador_multi(
                     pasta_destino_parquet,
                     pasta_temp_dbf,
                     pasta_temp_parquet,
-                    'lote',
+                    "lote",
                     tamanho_lote,
-                    compressao
+                    compressao,
                 )
             )
-            
+
         try:
             for futuro in as_completed(futuros):
                 nome_base, sucesso, mensagem = futuro.result()
                 if sucesso:
                     sucessos += 1
                 else:
-                    logger.error(f"Falha detectada em arquivo gerido assincronamente: {nome_base} - {mensagem}")
+                    logger.error(
+                        f"Falha detectada em arquivo gerido assincronamente: {nome_base} - {mensagem}"
+                    )
                     falhas += 1
                 progress_bar.update(1)
             progress_bar.close()
-            
+
         except KeyboardInterrupt:
-            logger.warning("Solicitação manual de interrupção submetida. Desalocando recursos e cancelando a fila...")
+            logger.warning(
+                "Solicitação manual de interrupção submetida. Desalocando recursos e cancelando a fila..."
+            )
             executor.shutdown(wait=False, cancel_futures=True)
             return
 
         except Exception as erro_execucao:
-            logger.error(f"Inconsistência identificada no nível de orquestração (Pool): {erro_execucao}")
+            logger.error(
+                f"Inconsistência identificada no nível de orquestração (Pool): {erro_execucao}"
+            )
             executor.shutdown(wait=False, cancel_futures=True)
             return
 
@@ -235,16 +249,16 @@ def orquestrador_multi(
 def orquestrador(
     pasta_origem_dbc: str,
     pasta_destino_parquet: str,
-    pasta_temp_dbf: str = './temp_dbf',
-    pasta_temp_parquet: str = './temp_parquet',
+    pasta_temp_dbf: str = "./temp_dbf",
+    pasta_temp_parquet: str = "./temp_parquet",
     max_workers: int = 1,
     tamanho_lote: int = 100000,
-    compressao: str = 'zstd'
+    compressao: str = "zstd",
 ) -> None:
     """
     Interface de orquestração mestre para o pipeline de processamento do projeto.
 
-    Atua como proxy de roteamento, destinando o tráfego de dados para execuções 
+    Atua como proxy de roteamento, destinando o tráfego de dados para execuções
     seriais ou paralelas dependendo da carga de `max_workers`.
     """
     if max_workers > 1:
@@ -255,7 +269,7 @@ def orquestrador(
             pasta_temp_parquet=pasta_temp_parquet,
             max_workers=max_workers,
             tamanho_lote=tamanho_lote,
-            compressao=compressao
+            compressao=compressao,
         )
     else:
         orquestrador_single(
@@ -264,5 +278,5 @@ def orquestrador(
             pasta_temp_dbf=pasta_temp_dbf,
             pasta_temp_parquet=pasta_temp_parquet,
             tamanho_lote=tamanho_lote,
-            compressao=compressao
+            compressao=compressao,
         )
