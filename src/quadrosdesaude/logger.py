@@ -35,24 +35,26 @@ logger = configurar_logger()
 
 
 @contextmanager
-def medir_tempo(nome_operacao: str) -> Iterator[None]:
+def medir_tempo(nome_operacao: str, arquivo: str | None = None) -> Iterator[None]:
     """
     Gerenciador de contexto para mensurar e registrar o tempo de execução de um bloco de código.
 
     Args:
         nome_operacao (str): Nome descritivo da operação que está sendo mensurada.
+        arquivo (str | None, opcional): Nome do arquivo relacionado à operação.
 
     Yields:
         None: Retorna o controle para o bloco de código interno.
     """
-    logger.info(f"Iniciando operação: {nome_operacao}")
+    suffix = f" | {arquivo}" if arquivo else ""
+    logger.info(f"Iniciando operação: {nome_operacao}{suffix}")
     inicio = time.perf_counter()
     try:
         yield
     finally:
         fim = time.perf_counter()
         duracao = fim - inicio
-        logger.info(f"Operação concluída: {nome_operacao} | Duração: {duracao:.4f} segundos")
+        logger.info(f"Operação concluída: {nome_operacao}{suffix} | Duração: {duracao:.4f} segundos")
 
 
 def logar_tempo(
@@ -74,7 +76,18 @@ def logar_tempo(
 
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            with medir_tempo(nome):
+            import os
+            # Procura um caminho de arquivo nos argumentos
+            arquivo = None
+            candidatos = list(args) + list(kwargs.values())
+            for cand in candidatos:
+                if isinstance(cand, str):
+                    lower_cand = cand.lower()
+                    if any(lower_cand.endswith(ext) for ext in [".dbc", ".dbf", ".parquet", ".csv", ".zip"]):
+                        arquivo = os.path.basename(cand)
+                        break
+
+            with medir_tempo(nome, arquivo=arquivo):
                 return func(*args, **kwargs)
 
         return wrapper

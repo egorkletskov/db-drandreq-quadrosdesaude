@@ -34,7 +34,7 @@ def harmonizar_registos_em_fluxo(
         yield {**template, **registo}
 
 
-@logar_tempo("Descompressão DBC para DBF")
+@logar_tempo("Descompressão DBC -> DBF")
 def dbc2dbf(caminho_dbc: str, caminho_dbf: str) -> bool:
     """
     Descomprime um arquivo .dbc binário em um formato padrão .dbf.
@@ -56,7 +56,7 @@ def dbc2dbf(caminho_dbc: str, caminho_dbf: str) -> bool:
         return False
 
 
-@logar_tempo("Conversão DBF para Parquet")
+@logar_tempo("Conversão DBF -> Parquet")
 def dbf2parquet(
     caminho_dbf: str,
     destino_parquet: Optional[str] = None,

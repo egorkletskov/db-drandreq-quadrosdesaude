@@ -9,7 +9,7 @@ from .conversor import dbc2dbf, dbf2parquet
 from quadrosdesaude.logger import logger, logar_tempo
 
 
-@logar_tempo("Pipeline Completo DBC para Parquet")
+@logar_tempo("Pipeline Completo DBC -> Parquet")
 def dbc2parquet(
     caminho_dbc: str,
     destino_parquet: str,
